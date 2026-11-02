@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planner & Schedule SPA - Pekanan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    /* Ukuran Kertas A4 Presisi */
+    .a4-landscape {
+      width: 297mm;
+      min-height: 210mm;
+    }
+    .a4-portrait {
+      width: 210mm;
+      min-height: 297mm;
+    }
+    @media (max-width: 1024px) {
+      .a4-wrapper {
+        transform: scale(0.65);
+        transform-origin: top center;
+      }
+    }
+    @media (max-width: 640px) {
+      .a4-wrapper {
+        transform: scale(0.4);
+        transform-origin: top center;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800 min-h-screen">
+
+  <div class="max-w-6xl mx-auto p-4 md:p-6">
+    <!-- Header -->
+    <header class="bg-white rounded-xl shadow-md p-6 mb-6 text-center">
+      <h1 class="text-2xl md:text-3xl font-bold text-indigo-600">Jadwal & Perencanaan Kegiatan</h1>
+      <p class="text-gray-500 text-sm mt-1">Perencanaan Pekanan & Laporan Bulanan</p>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 pb-2">
+      <button onclick="switchTab('mingguan')" id="tab-mingguan" class="tab-btn bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Laporan Mingguan</button>
+      <button onclick="switchTab('bulanan')" id="tab-bulanan" class="tab-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Laporan Bulanan</button>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Input Form -->
+      <div id="formSection" class="bg-white p-6 rounded-xl shadow-md h-fit lg:col-span-1">
+        <div class="flex justify-between items-center mb-4">
+          <h2 id="formTitle" class="text-lg font-semibold text-gray-700">Tambah Rencana Pekanan</h2>
+          <button id="cancelEditBtn" onclick="resetForm()" class="text-xs text-red-500 hover:underline hidden">Batal Edit</button>
+        </div>
+        
+        <form id="scheduleForm" onsubmit="addSchedule(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Tanggal Awal Minggu (Senin)</label>
+            <input type="date" id="inputDate" required class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+
+          <!-- Form Fields Pekanan (Senin - Jumat) -->
+          <div id="fieldsMingguan" class="space-y-4 max-h-[480px] overflow-y-auto pr-2">
+            <!-- Diisi secara dinamis melalui JavaScript -->
+          </div>
+
+          <button id="submitBtn" type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition">
+            Simpan Jadwal Pekanan
+          </button>
+        </form>
+      </div>
+
+     <!-- Schedule List & Report Container -->
+<div id="listSection" class="bg-white p-6 rounded-xl shadow-md lg:col-span-2">
+  <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+    <h2 id="currentPeriodTitle" class="text-lg font-semibold text-gray-700 capitalize">Daftar Jadwal Mingguan</h2>
+    <span id="loadingText" class="text-xs text-indigo-600 font-semibold hidden animate-pulse">Memuat Data Spreadsheet...</span>
+  </div>
+
+  <!-- Filter Tanggal -->
+  <div id="filterContainer" class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2 w-full sm:w-auto">
+      <label for="filterDate" class="text-xs font-semibold text-gray-600 whitespace-nowrap">Filter Awal Minggu:</label>
+      <input type="date" id="filterDate" onchange="renderSchedules()" class="border border-gray-300 rounded-lg p-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+    </div>
+    <button onclick="clearFilterDate()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline">Tampilkan Semua</button>
+  </div>
+
+  <!-- Filter Bulan -->
+  <div id="filterBulanContainer" class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4 flex items-center gap-3 hidden">
+    <label for="filterMonth" class="text-xs font-semibold text-gray-600">Pilih Bulan & Tahun:</label>
+    <input type="month" id="filterMonth" onchange="renderSchedules()" class="border border-gray-300 rounded-lg p-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+  </div>
+
+  <!-- Export Area -->
+  <div id="reportArea" class="p-2 bg-white rounded-xl">
+    <!-- TAMBAHAN KELAS: max-h-[500px] overflow-y-auto pr-2 -->
+    <div id="scheduleList" class="space-y-4 mb-6 max-h-[500px] overflow-y-auto pr-2">
+      <p class="text-gray-400 text-sm text-center py-6">Memuat data dari Google Spreadsheet...</p>
+    </div>
+  </div>
+
+
+</div>
+
+    </div>
+  </div>
+
+  <!-- MODAL DETAIL HARI -->
+  <div id="dayDetailModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 relative animate-fade-in">
+      <button onclick="closeDayModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-lg font-bold">&times;</button>
+      <div class="border-b pb-3">
+        <h3 id="modalDayTitle" class="text-xl font-bold text-indigo-700">Detail Hari</h3>
+        <p id="modalDaySubtitle" class="text-xs text-gray-500 mt-0.5">Awal Minggu: -</p>
+      </div>
+      <div id="modalDayContent" class="space-y-3">
+        <!-- Rincian slot kegiatan diisi lewat JS -->
+      </div>
+      <div class="flex justify-end pt-3 border-t">
+        <button onclick="closeDayModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs px-4 py-2 rounded-lg font-medium transition">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PRINT PREVIEW A4 -->
+  <div id="printPreviewModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center hidden p-2 md:p-6">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden relative">
+      
+      <!-- Header Preview -->
+      <div class="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
+        <div>
+          <h3 class="text-lg font-bold text-gray-800">Print Preview Dokumen (A4)</h3>
+          <p class="text-xs text-gray-500">Tampilan di bawah dioptimalkan sesuai dengan proporsi kertas A4.</p>
+        </div>
+        <button onclick="closePreviewModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+      </div>
+
+      <!-- Area Tampilan Lembar Kertas A4 -->
+      <div class="flex-1 overflow-auto p-4 md:p-8 bg-gray-500 flex justify-center items-start">
+        <div class="a4-wrapper">
+          <div id="previewCanvas" class="bg-white shadow-2xl p-8 mx-auto border border-gray-300 box-border">
+            <!-- Konten Cetak Diisi via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Action Buttons -->
+      <div class="flex justify-end items-center gap-3 px-6 py-4 border-t bg-gray-50">
+        <button onclick="closePreviewModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs px-4 py-2 rounded-lg font-medium transition">Batal</button>
+        <button id="downloadPdfBtn" onclick="downloadPreviewPDF()" class="bg-red-500 hover:bg-red-600 text-white text-xs px-5 py-2 rounded-lg font-medium flex items-center gap-2 transition shadow">
+          📄 Cetak / Download PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SPREADSHEET_API_URL = "https://script.google.com/macros/s/AKfycbzc4KRkFE0RJ04gZo8T7mwvJlPfxetApsSQHOqUlGncMP1FqONJRr6NKTfpCpNz5m39/exec";
+
+    let currentPeriod = 'mingguan';
+    let schedules = [];
+    let editModeId = null;
+    let activePreviewMeta = { filename: 'Laporan.pdf', orientation: 'landscape' };
+
+    function buildFormFields() {
+      const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+      const container = document.getElementById('fieldsMingguan');
+      container.innerHTML = days.map(day => `
+        <div class="border border-gray-200 p-3 rounded-lg bg-gray-50 space-y-2">
+          <h4 class="text-xs font-bold text-indigo-700 uppercase border-b border-indigo-100 pb-1">Hari ${day}</h4>
+          <div>
+            <label class="block text-[10px] text-gray-500">Jam ke-1</label>
+            <input type="text" id="input${day}Jam1" class="w-full border border-gray-300 rounded p-1.5 text-xs bg-white">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-500">Jam ke-2</label>
+            <input type="text" id="input${day}Jam2" class="w-full border border-gray-300 rounded p-1.5 text-xs bg-white">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-500">Jam ke-3</label>
+            <input type="text" id="input${day}Jam3" class="w-full border border-gray-300 rounded p-1.5 text-xs bg-white">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-500">Bakda Dzuhur</label>
+            <input type="text" id="input${day}Bakda" class="w-full border border-gray-300 rounded p-1.5 text-xs bg-white">
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getTodayFormatted() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function clearFilterDate() {
+      document.getElementById('filterDate').value = '';
+      renderSchedules();
+    }
+
+    function switchTab(period) {
+      currentPeriod = period;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        btn.classList.add('bg-gray-200', 'text-gray-700');
+      });
+      
+      const activeTab = document.getElementById(`tab-${period}`);
+      if (activeTab) {
+        activeTab.classList.remove('bg-gray-200', 'text-gray-700');
+        activeTab.classList.add('bg-indigo-600', 'text-white');
+      }
+
+      const formSection = document.getElementById('formSection');
+      const listSection = document.getElementById('listSection');
+      const filterContainer = document.getElementById('filterContainer');
+      const filterBulanContainer = document.getElementById('filterBulanContainer');
+      const shareBulananBtn = document.getElementById('shareBulananBtn');
+
+      if (period === 'bulanan') {
+        formSection.classList.add('hidden');
+        listSection.classList.remove('lg:col-span-2');
+        listSection.classList.add('lg:col-span-3');
+        filterContainer.classList.add('hidden');
+        filterBulanContainer.classList.remove('hidden');
+        shareBulananBtn.classList.remove('hidden');
+        document.getElementById('currentPeriodTitle').innerText = `Rekap Laporan Bulanan`;
+      } else {
+        formSection.classList.remove('hidden');
+        listSection.classList.remove('lg:col-span-3');
+        listSection.classList.add('lg:col-span-2');
+        filterContainer.classList.remove('hidden');
+        filterBulanContainer.classList.add('hidden');
+        shareBulananBtn.classList.add('hidden');
+        document.getElementById('currentPeriodTitle').innerText = `Daftar Jadwal Pekanan`;
+      }
+
+      renderSchedules();
+    }
+
+    function formatDateToYYYYMMDD(rawDate) {
+      if (!rawDate) return '';
+      if (typeof rawDate === 'string' && rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return rawDate;
+      }
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return String(rawDate).split('T')[0];
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${month}-${day}`;
+    }
+
+    async function fetchSchedules() {
+      if (!SPREADSHEET_API_URL) return;
+      
+      const loading = document.getElementById('loadingText');
+      loading.classList.remove('hidden');
+
+      try {
+        const response = await fetch(SPREADSHEET_API_URL);
+        const rawData = await response.json();
+        
+        schedules = rawData.map(item => {
+          let dataObj = item.schedule_data;
+          if (typeof dataObj === 'string') {
+            try { 
+              dataObj = JSON.parse(dataObj); 
+            } catch(e) {
+              dataObj = {};
+            }
+          }
+          return {
+            ...item,
+            date: formatDateToYYYYMMDD(item.date),
+            schedule_data: dataObj || {}
+          };
+        });
+
+        renderSchedules();
+      } catch (err) {
+        console.error("Gagal mengambil data dari Google Sheets:", err);
+        document.getElementById('scheduleList').innerHTML = `<p class="text-red-500 text-sm text-center py-6">Gagal memuat data dari Spreadsheet. Silakan periksa koneksi internet Anda.</p>`;
+      } finally {
+        loading.classList.add('hidden');
+      }
+    }
+
+    async function toggleSlotCheck(scheduleId, day, slot) {
+      const item = schedules.find(s => String(s.id) === String(scheduleId));
+      if (!item || !item.schedule_data || !item.schedule_data[day]) return;
+
+      const currentVal = item.schedule_data[day][`${slot}_done`] || false;
+      item.schedule_data[day][`${slot}_done`] = !currentVal;
+
+      updateOverallStatus(item);
+      renderSchedules();
+
+      if (SPREADSHEET_API_URL) {
+        document.getElementById('loadingText').classList.remove('hidden');
+        try {
+          await fetch(SPREADSHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'update_schedule_data',
+              id: item.id,
+              schedule_data: item.schedule_data,
+              status: item.status
+            })
+          });
+        } catch (err) {
+          console.error("Gagal memperbarui status:", err);
+        } finally {
+          document.getElementById('loadingText').classList.add('hidden');
+        }
+      }
+    }
+
+    function updateOverallStatus(item) {
+      const sd = item.schedule_data || {};
+      const days = ['senin', 'selasa', 'rabu', 'kamis', 'jumat'];
+      const slots = ['jam1', 'jam2', 'jam3', 'bakda'];
+      
+      let totalSlots = 0;
+      let completedSlots = 0;
+
+      days.forEach(d => {
+        if (sd[d]) {
+          slots.forEach(s => {
+            if (sd[d][s] && String(sd[d][s]).trim() !== '') {
+              totalSlots++;
+              if (sd[d][`${s}_done`]) completedSlots++;
+            }
+          });
+        }
+      });
+
+      if (totalSlots > 0 && totalSlots === completedSlots) {
+        item.status = 'Selesai';
+      } else {
+        item.status = 'Pending';
+      }
+    }
+
+    function editSchedule(id) {
+      const item = schedules.find(s => String(s.id) === String(id));
+      if (!item) return;
+
+      editModeId = item.id;
+      document.getElementById('formTitle').innerText = "Edit Jadwal Pekanan";
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+      document.getElementById('inputDate').value = item.date;
+
+      const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+      const sd = item.schedule_data || {};
+
+      days.forEach(d => {
+        const dayData = sd[d.toLowerCase()] || {};
+        document.getElementById(`input${d}Jam1`).value = dayData.jam1 || '';
+        document.getElementById(`input${d}Jam2`).value = dayData.jam2 || '';
+        document.getElementById(`input${d}Jam3`).value = dayData.jam3 || '';
+        document.getElementById(`input${d}Bakda`).value = dayData.bakda || '';
+      });
+
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = "Update Jadwal Pekanan";
+      btn.className = "w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 rounded-lg text-sm transition";
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetForm() {
+      editModeId = null;
+      document.getElementById('scheduleForm').reset();
+      document.getElementById('inputDate').value = getTodayFormatted();
+      document.getElementById('formTitle').innerText = "Tambah Rencana Pekanan";
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = "Simpan Jadwal Pekanan";
+      btn.className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition";
+    }
+
+    async function deleteSchedule(id) {
+      if (!confirm("Apakah Anda yakin ingin menghapus jadwal pekanan ini?")) return;
+
+      schedules = schedules.filter(item => String(item.id) !== String(id));
+      renderSchedules();
+
+      if (SPREADSHEET_API_URL) {
+        document.getElementById('loadingText').classList.remove('hidden');
+        try {
+          await fetch(SPREADSHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', id: id })
+          });
+        } catch (err) {
+          console.error("Gagal menghapus data:", err);
+        } finally {
+          document.getElementById('loadingText').classList.add('hidden');
+        }
+      }
+    }
+
+    function showDayModal(scheduleId, dayName) {
+      const item = schedules.find(s => String(s.id) === String(scheduleId));
+      if (!item) return;
+
+      const dayKey = dayName.toLowerCase();
+      const dayData = (item.schedule_data && item.schedule_data[dayKey]) ? item.schedule_data[dayKey] : {};
+      
+      document.getElementById('modalDayTitle').innerText = `Detail Hari ${dayName}`;
+      document.getElementById('modalDaySubtitle').innerText = `Awal Minggu: ${item.date || '-'}`;
+
+      const slots = [
+        { key: 'jam1', label: 'Jam ke-1' },
+        { key: 'jam2', label: 'Jam ke-2' },
+        { key: 'jam3', label: 'Jam ke-3' },
+        { key: 'bakda', label: 'Bakda Dzuhur' }
+      ];
+
+      let contentHTML = '';
+      slots.forEach(slot => {
+        const val = dayData[slot.key] || '-';
+        const isDone = dayData[`${slot.key}_done`] || false;
+        
+        contentHTML += `
+          <div class="p-3 border rounded-lg ${isDone ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-gray-500 uppercase">${slot.label}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded font-semibold ${isDone ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}">
+                ${isDone ? 'Selesai' : 'Belum Selesai'}
+              </span>
+            </div>
+            <p class="text-sm font-medium ${isDone ? 'line-through text-gray-500' : 'text-gray-800'} break-words">
+              ${val}
+            </p>
+          </div>
+        `;
+      });
+
+      document.getElementById('modalDayContent').innerHTML = contentHTML;
+      document.getElementById('dayDetailModal').classList.remove('hidden');
+    }
+
+    function closeDayModal() {
+      document.getElementById('dayDetailModal').classList.add('hidden');
+    }
+
+    function renderSchedules() {
+      const container = document.getElementById('scheduleList');
+      container.innerHTML = '';
+
+      if (currentPeriod === 'bulanan') {
+        renderBulanan(container);
+        return;
+      }
+
+      const selectedFilterDate = document.getElementById('filterDate').value;
+      let filtered = [...schedules];
+
+      if (selectedFilterDate) {
+        filtered = filtered.filter(item => item.date === selectedFilterDate);
+      }
+
+      filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-gray-400 text-sm text-center py-6">Belum ada jadwal pekanan tersimpan.</p>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const isDone = item.status === 'Selesai';
+        const card = document.createElement('div');
+        card.id = `card-pekan-${item.id}`;
+        card.className = `p-4 rounded-xl border ${isDone ? 'bg-gray-50 border-gray-200' : 'bg-white border-indigo-100'} shadow-sm space-y-3 transition`;
+
+        let displayDate = item.date || '-';
+        if (item.date) {
+          const parts = item.date.split('-');
+          if (parts.length === 3) {
+            const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            displayDate = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+          }
+        }
+
+        const data = item.schedule_data || {};
+        const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+
+        let contentHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 text-xs border-t pt-2 mt-2">`;
+        
+        days.forEach(d => {
+          const dayKey = d.toLowerCase();
+          const dayData = data[dayKey] || {};
+          
+          const slots = [
+            { key: 'jam1', label: 'J1' },
+            { key: 'jam2', label: 'J2' },
+            { key: 'jam3', label: 'J3' },
+            { key: 'bakda', label: 'Dzuhur' }
+          ];
+
+          contentHTML += `
+            <div onclick="showDayModal('${item.id}', '${d}')" class="bg-gray-50 hover:bg-indigo-50/60 p-2 rounded border border-gray-100 space-y-1 cursor-pointer transition transform hover:-translate-y-0.5">
+              <div class="flex justify-between items-center border-b pb-1 mb-1">
+                <span class="font-bold text-indigo-600 block">${d}</span>
+                <span class="text-[9px] text-gray-400 font-normal hover:underline">Detail &rsaquo;</span>
+              </div>
+          `;
+
+          slots.forEach(slot => {
+            const val = dayData[slot.key] || '';
+            const checked = dayData[`${slot.key}_done`] ? 'checked' : '';
+            const lineThrough = checked ? 'line-through text-gray-400' : 'text-gray-700';
+
+            contentHTML += `
+              <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+                <input 
+                  type="checkbox" 
+                  ${checked} 
+                  ${!val ? 'disabled' : ''} 
+                  onchange="toggleSlotCheck('${item.id}', '${dayKey}', '${slot.key}')" 
+                  class="w-3.5 h-3.5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer disabled:opacity-30"
+                >
+                <div class="truncate ${lineThrough}">
+                  <span class="text-gray-400 font-semibold">${slot.label}:</span> ${val || '-'}
+                </div>
+              </div>
+            `;
+          });
+
+          contentHTML += `</div>`;
+        });
+        
+        contentHTML += `</div>`;
+
+        card.innerHTML = `
+          <div class="flex flex-wrap justify-between items-center border-b pb-2 gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-indigo-600">Awal Minggu: ${displayDate}</span>
+            </div>
+            
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="previewPDFPekan('${item.id}', '${item.date}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition">
+                🖨️ Preview PDF Pekan Ini
+              </button>
+
+              <div class="inline-flex items-center bg-green-600 hover:bg-green-700 text-white rounded-lg px-2.5 py-1 text-xs font-medium shadow-sm transition">
+                <span class="mr-1">💬 Share WA:</span>
+                <select onchange="shareWhatsApp('${item.id}', this.value); this.value='';" class="bg-transparent text-white font-semibold cursor-pointer focus:outline-none">
+                  <option value="" class="text-gray-800">-- Pilih --</option>
+                  <option value="all" class="text-gray-800">Full 1 Pekan</option>
+                  <option value="senin" class="text-gray-800">Hari Senin</option>
+                  <option value="selasa" class="text-gray-800">Hari Selasa</option>
+                  <option value="rabu" class="text-gray-800">Hari Rabu</option>
+                  <option value="kamis" class="text-gray-800">Hari Kamis</option>
+                  <option value="jumat" class="text-gray-800">Hari Jumat</option>
+                </select>
+              </div>
+
+              <span class="text-xs px-2 py-1 rounded font-medium ${isDone ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${item.status || 'Pending'}</span>
+              
+              <button onclick="editSchedule('${item.id}')" title="Edit" class="text-amber-500 hover:text-amber-700 p-1 rounded transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              </button>
+
+              <button onclick="deleteSchedule('${item.id}')" title="Hapus" class="text-red-500 hover:text-red-700 p-1 rounded transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </button>
+            </div>
+          </div>
+          ${contentHTML}
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function renderBulanan(container) {
+      const selectedMonth = document.getElementById('filterMonth').value;
+      if (!selectedMonth) {
+        container.innerHTML = `<p class="text-gray-400 text-sm text-center py-6">Pilih bulan terlebih dahulu.</p>`;
+        return;
+      }
+
+      const [yearStr, monthStr] = selectedMonth.split('-');
+      const year = parseInt(yearStr, 10);
+      const month = parseInt(monthStr, 10) - 1;
+
+      const mondays = [];
+      let date = new Date(year, month, 1);
+      
+      while (date.getMonth() === month) {
+        if (date.getDay() === 1) {
+          const yyyy = date.getFullYear();
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          mondays.push(`${yyyy}-${mm}-${dd}`);
+        }
+        date.setDate(date.getDate() + 1);
+      }
+
+      const monthlyReport = mondays.map((mondayDate, idx) => {
+        const existing = schedules.find(s => s.date === mondayDate);
+        if (existing) {
+          return {
+            pekanKe: idx + 1,
+            date: mondayDate,
+            status: existing.status || 'Pending',
+            data: existing.schedule_data || {},
+            isCreated: true
+          };
+        } else {
+          return {
+            pekanKe: idx + 1,
+            date: mondayDate,
+            status: 'Belum Diisi',
+            data: {},
+            isCreated: false
+          };
+        }
+      });
+
+      const totalPekan = monthlyReport.length;
+      const selesai = monthlyReport.filter(r => r.status === 'Selesai').length;
+      const pending = monthlyReport.filter(r => r.status === 'Pending').length;
+      const belumDiisi = monthlyReport.filter(r => !r.isCreated).length;
+
+      container.innerHTML = `
+        <div class="mb-6 p-4 border border-gray-200 rounded-xl bg-gray-50">
+          <h3 class="text-center text-sm font-bold text-gray-700 uppercase mb-3">Ringkasan Laporan Bulanan (${selectedMonth})</h3>
+          <table class="w-full text-center border-collapse">
+            <tbody>
+              <tr>
+                <td class="p-2 border-r border-gray-300 w-1/4">
+                  <span class="block text-[10px] font-semibold text-gray-600 uppercase">Total Pekan</span>
+                  <span class="text-lg font-bold text-indigo-700">${totalPekan} Pekan</span>
+                </td>
+                <td class="p-2 border-r border-gray-300 w-1/4">
+                  <span class="block text-[10px] font-semibold text-green-600 uppercase">Selesai</span>
+                  <span class="text-lg font-bold text-green-700">${selesai}</span>
+                </td>
+                <td class="p-2 border-r border-gray-300 w-1/4">
+                  <span class="block text-[10px] font-semibold text-yellow-600 uppercase">Pending</span>
+                  <span class="text-lg font-bold text-yellow-700">${pending}</span>
+                </td>
+                <td class="p-2 w-1/4">
+                  <span class="block text-[10px] font-semibold text-gray-400 uppercase">Belum Diisi</span>
+                  <span class="text-lg font-bold text-gray-500">${belumDiisi}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border border-gray-200 border-collapse">
+            <thead>
+              <tr class="bg-gray-100 border-b border-gray-300 text-gray-700 font-bold">
+                <th class="p-2.5 border-r border-gray-200">Pekan Ke-</th>
+                <th class="p-2.5 border-r border-gray-200">Tgl Awal Minggu (Senin)</th>
+                <th class="p-2.5 border-r border-gray-200">Status</th>
+                <th class="p-2.5">Progres Kegiatan</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${monthlyReport.map(item => {
+                let progresText = "-";
+                let statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Belum Diisi</span>`;
+
+                if (item.isCreated) {
+                  const sd = item.data;
+                  const days = ['senin', 'selasa', 'rabu', 'kamis', 'jumat'];
+                  const slots = ['jam1', 'jam2', 'jam3', 'bakda'];
+                  
+                  let total = 0;
+                  let done = 0;
+
+                  days.forEach(d => {
+                    if (sd[d]) {
+                      slots.forEach(s => {
+                        if (sd[d][s] && String(sd[d][s]).trim() !== '') {
+                          total++;
+                          if (sd[d][`${s}_done`]) done++;
+                        }
+                      });
+                    }
+                  });
+
+                  progresText = `${done} / ${total} kegiatan selesai`;
+                  statusBadge = item.status === 'Selesai' 
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">Selesai</span>`
+                    : `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-yellow-100 text-yellow-700">Pending</span>`;
+                }
+
+                return `
+                  <tr class="border-b border-gray-200 hover:bg-gray-50">
+                    <td class="p-2.5 border-r border-gray-200 font-bold text-center">Pekan ${item.pekanKe}</td>
+                    <td class="p-2.5 border-r border-gray-200 font-medium">${item.date}</td>
+                    <td class="p-2.5 border-r border-gray-200">${statusBadge}</td>
+                    <td class="p-2.5 text-gray-700 font-medium">${progresText}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function addSchedule(e) {
+      e.preventDefault();
+
+      const isEdit = editModeId !== null;
+      const existingItem = isEdit ? schedules.find(s => String(s.id) === String(editModeId)) : null;
+
+      const schedulePayload = {
+        action: isEdit ? 'edit' : 'add',
+        id: isEdit ? editModeId : Date.now().toString(),
+        date: formatDateToYYYYMMDD(document.getElementById('inputDate').value),
+        status: existingItem ? existingItem.status : "Pending",
+        schedule_data: {}
+      };
+
+      const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+      days.forEach(d => {
+        const dayKey = d.toLowerCase();
+        const oldDayData = (existingItem && existingItem.schedule_data) ? existingItem.schedule_data[dayKey] || {} : {};
+
+        schedulePayload.schedule_data[dayKey] = {
+          jam1: document.getElementById(`input${d}Jam1`).value,
+          jam1_done: oldDayData.jam1_done || false,
+          
+          jam2: document.getElementById(`input${d}Jam2`).value,
+          jam2_done: oldDayData.jam2_done || false,
+          
+          jam3: document.getElementById(`input${d}Jam3`).value,
+          jam3_done: oldDayData.jam3_done || false,
+          
+          bakda: document.getElementById(`input${d}Bakda`).value,
+          bakda_done: oldDayData.bakda_done || false
+        };
+      });
+
+      updateOverallStatus(schedulePayload);
+
+      if (isEdit) {
+        const index = schedules.findIndex(s => String(s.id) === String(editModeId));
+        if (index !== -1) schedules[index] = schedulePayload;
+      } else {
+        schedules.push(schedulePayload);
+      }
+
+      renderSchedules();
+      resetForm();
+
+      if (SPREADSHEET_API_URL) {
+        document.getElementById('loadingText').classList.remove('hidden');
+        try {
+          await fetch(SPREADSHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(schedulePayload)
+          });
+        } catch (err) {
+          console.error("Gagal menyimpan data:", err);
+        } finally {
+          document.getElementById('loadingText').classList.add('hidden');
+        }
+      }
+    }
+
+    // PREVIEW JADWAL 1 PEKAN
+    function previewPDFPekan(id, dateStr) {
+      const item = schedules.find(s => String(s.id) === String(id));
+      if (!item) return;
+
+      const data = item.schedule_data || {};
+      const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+
+      let displayDate = dateStr || '-';
+      if (dateStr) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+          const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+          displayDate = dateObj.toLocaleDateString('id-ID', {
+            day: 'numeric', month: 'long', year: 'numeric'
+          });
+        }
+      }
+
+      let tableRows = '';
+      days.forEach(d => {
+        const dayKey = d.toLowerCase();
+        const dayData = data[dayKey] || {};
+
+        const value = (key) => {
+          const val = dayData[key];
+          if (!val || String(val).trim() === '') return '-';
+          return `${dayData[`${key}_done`] ? '✓ ' : ''}${String(val)}`;
+        };
+
+        tableRows += `
+          <tr>
+            <td style="padding:10px; border:1px solid #94a3b8; background:#f1f5f9; font-weight:bold; text-align:center;">${d}</td>
+            <td style="padding:10px; border:1px solid #94a3b8;">${value('jam1')}</td>
+            <td style="padding:10px; border:1px solid #94a3b8;">${value('jam2')}</td>
+            <td style="padding:10px; border:1px solid #94a3b8;">${value('jam3')}</td>
+            <td style="padding:10px; border:1px solid #94a3b8;">${value('bakda')}</td>
+          </tr>
+        `;
+      });
+
+      const htmlContent = `
+        <div style="text-align:center; margin-bottom:24px;">
+          <h2 style="font-size:22px; margin:0; color:#1e1b4b; font-weight:bold;">JADWAL KEGIATAN PEKANAN</h2>
+          <p style="font-size:13px; color:#475569; margin-top:6px;">Awal Minggu (Senin): <strong>${displayDate}</strong> | Status: <strong>${item.status || 'Pending'}</strong></p>
+        </div>
+        <table style="width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed;">
+          <thead>
+            <tr style="background:#4f46e5; color:#ffffff;">
+              <th style="padding:10px; border:1px solid #4f46e5; width:15%;">HARI</th>
+              <th style="padding:10px; border:1px solid #4f46e5; width:21.25%;">JAM 1</th>
+              <th style="padding:10px; border:1px solid #4f46e5; width:21.25%;">JAM 2</th>
+              <th style="padding:10px; border:1px solid #4f46e5; width:21.25%;">JAM 3</th>
+              <th style="padding:10px; border:1px solid #4f46e5; width:21.25%;">DZUHUR / BAKDA</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      `;
+
+      activePreviewMeta = {
+        filename: `Jadwal_Pekanan_${dateStr || 'tanpa-tanggal'}.pdf`,
+        orientation: 'landscape'
+      };
+
+      openPreviewModal(htmlContent, 'landscape');
+    }
+
+    // PREVIEW JADWAL UMUM (MINGGUAN / BULANAN)
+    function previewPDF() {
+      const isBulanan = currentPeriod === 'bulanan';
+      const selectedMonth = document.getElementById('filterMonth')?.value || '';
+
+      if (isBulanan && !selectedMonth) {
+        alert("Silakan pilih bulan terlebih dahulu.");
+        return;
+      }
+
+      let htmlContent = '';
+      let orientation = 'landscape';
+
+      if (isBulanan) {
+        orientation = 'landscape';
+        const [yearStr, monthStr] = selectedMonth.split('-');
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10) - 1;
+        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        
+        const mondays = [];
+        let date = new Date(year, month, 1);
+        while (date.getMonth() === month) {
+          if (date.getDay() === 1) {
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            mondays.push(`${yyyy}-${mm}-${dd}`);
+          }
+          date.setDate(date.getDate() + 1);
+        }
+
+        const monthlyReport = mondays.map((mondayDate, idx) => {
+          const existing = schedules.find(s => s.date === mondayDate);
+          return existing ? { pekanKe: idx + 1, date: mondayDate, status: existing.status || 'Pending', data: existing.schedule_data || {}, isCreated: true }
+                          : { pekanKe: idx + 1, date: mondayDate, status: 'Belum Diisi', data: {}, isCreated: false };
+        });
+
+        let tableRows = '';
+        monthlyReport.forEach(item => {
+          let progresText = "-";
+          let detailPekananHtml = '<em style="color:#94a3b8;">Tidak ada data kegiatan</em>';
+
+          if (item.isCreated) {
+            const sd = item.data || {};
+            const days = ['senin', 'selasa', 'rabu', 'kamis', 'jumat'];
+            const dayLabels = { senin: 'Senin', selasa: 'Selasa', rabu: 'Rabu', kamis: 'Kamis', jumat: 'Jumat' };
+            const slots = ['jam1', 'jam2', 'jam3', 'bakda'];
+            let total = 0, done = 0;
+
+            let dayDetails = [];
+            days.forEach(d => {
+              if (sd[d]) {
+                let slotDetails = [];
+                slots.forEach(s => {
+                  if (sd[d][s] && String(sd[d][s]).trim() !== '') {
+                    total++;
+                    const isDone = sd[d][`${s}_done`];
+                    if (isDone) done++;
+                    const slotLabel = s === 'jam1' ? 'J1' : s === 'jam2' ? 'J2' : s === 'jam3' ? 'J3' : 'Bakda';
+                    const doneMark = isDone ? ' <span style="color:#16a34a; font-weight:bold;">(✓)</span>' : '';
+                    slotDetails.push(`<strong>${slotLabel}:</strong> ${sd[d][s]}${doneMark}`);
+                  }
+                });
+                if (slotDetails.length > 0) {
+                  dayDetails.push(`<div style="margin-bottom:2px;"><strong>${dayLabels[d]}:</strong> ${slotDetails.join(' | ')}</div>`);
+                }
+              }
+            });
+
+            progresText = `${done} / ${total} kegiatan selesai`;
+            if (dayDetails.length > 0) {
+              detailPekananHtml = dayDetails.join('');
+            }
+          }
+
+          tableRows += `
+            <tr style="page-break-inside:avoid;">
+              <td style="padding:8px; border:1px solid #cbd5e1; text-align:center; font-weight:bold; width:8%;">Pekan ${item.pekanKe}</td>
+              <td style="padding:8px; border:1px solid #cbd5e1; text-align:center; width:12%; font-weight:500;">${item.date}</td>
+              <td style="padding:8px; border:1px solid #cbd5e1; text-align:center; width:10%;">${item.status}</td>
+              <td style="padding:8px; border:1px solid #cbd5e1; text-align:center; width:15%; font-weight:600;">${progresText}</td>
+              <td style="padding:8px; border:1px solid #cbd5e1; font-size:11px; line-height:1.4;">${detailPekananHtml}</td>
+            </tr>
+          `;
+        });
+
+        htmlContent = `
+          <div style="text-align:center; margin-bottom:20px;">
+            <h2 style="font-size:20px; margin:0; color:#1e1b4b; font-weight:bold;">REKAP LAPORAN BULANAN & DETAIL PEKANAN</h2>
+            <p style="font-size:12px; color:#4b5563; margin-top:5px;">Periode: <strong>${monthNames[month]} ${year}</strong></p>
+          </div>
+          <table style="width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed;">
+            <thead>
+              <tr style="background:#4f46e5; color:#ffffff;">
+                <th style="padding:8px; border:1px solid #cbd5e1; width:8%;">Pekan</th>
+                <th style="padding:8px; border:1px solid #cbd5e1; width:12%;">Tgl Awal Minggu</th>
+                <th style="padding:8px; border:1px solid #cbd5e1; width:10%;">Status</th>
+                <th style="padding:8px; border:1px solid #cbd5e1; width:15%;">Progres</th>
+                <th style="padding:8px; border:1px solid #cbd5e1;">Rincian Detail Kegiatan Pekanan</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        `;
+
+        activePreviewMeta = {
+          filename: `Laporan_Bulanan_Detail_${selectedMonth}.pdf`,
+          orientation: 'landscape'
+        };
+      } else {
+        const selectedFilterDate = document.getElementById('filterDate')?.value;
+        let filtered = [...schedules];
+        if (selectedFilterDate) {
+          filtered = filtered.filter(item => item.date === selectedFilterDate);
+        }
+
+        if (filtered.length === 0) {
+          alert("Tidak ada data jadwal pekanan untuk ditampilkan.");
+          return;
+        }
+
+        let innerContent = '';
+        filtered.forEach(item => {
+          const data = item.schedule_data || {};
+          const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+
+          let rows = '';
+          days.forEach(d => {
+            const dayData = data[d.toLowerCase()] || {};
+            const getVal = (k) => dayData[k] ? `${dayData[`${k}_done`] ? '✓ ' : ''}${dayData[k]}` : '-';
+
+            rows += `
+              <tr>
+                <td style="padding:6px; border:1px solid #cbd5e1; background:#f9fafb; font-weight:bold; text-align:center;">${d}</td>
+                <td style="padding:6px; border:1px solid #cbd5e1;">${getVal('jam1')}</td>
+                <td style="padding:6px; border:1px solid #cbd5e1;">${getVal('jam2')}</td>
+                <td style="padding:6px; border:1px solid #cbd5e1;">${getVal('jam3')}</td>
+                <td style="padding:6px; border:1px solid #cbd5e1;">${getVal('bakda')}</td>
+              </tr>
+            `;
+          });
+
+          innerContent += `
+            <div style="margin-bottom:25px; page-break-inside:avoid;">
+              <h3 style="font-size:14px; margin:0 0 8px 0; color:#4338ca;">Awal Minggu: ${item.date} (${item.status || 'Pending'})</h3>
+              <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
+                <thead>
+                  <tr style="background:#4f46e5; color:#ffffff;">
+                    <th style="padding:6px; border:1px solid #cbd5e1; width:15%;">HARI</th>
+                    <th style="padding:6px; border:1px solid #cbd5e1; width:21.25%;">JAM 1</th>
+                    <th style="padding:6px; border:1px solid #cbd5e1; width:21.25%;">JAM 2</th>
+                    <th style="padding:6px; border:1px solid #cbd5e1; width:21.25%;">JAM 3</th>
+                    <th style="padding:6px; border:1px solid #cbd5e1; width:21.25%;">DZUHUR / BAKDA</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          `;
+        });
+
+        htmlContent = `
+          <div style="text-align:center; margin-bottom:20px;">
+            <h2 style="font-size:20px; margin:0; color:#1e1b4b; font-weight:bold;">DAFTAR JADWAL PEKANAN</h2>
+          </div>
+          ${innerContent}
+        `;
+
+        activePreviewMeta = {
+          filename: `Laporan_Jadwal_Mingguan.pdf`,
+          orientation: 'landscape'
+        };
+      }
+
+      openPreviewModal(htmlContent, orientation);
+    }
+
+    // MEMBUKA MODAL DAN MENYESUAIKAN DIMENSI WADAH KE A4
+    function openPreviewModal(htmlContent, orientation) {
+      const canvas = document.getElementById('previewCanvas');
+      canvas.className = orientation === 'landscape' 
+        ? 'bg-white shadow-2xl p-8 mx-auto border border-gray-300 box-border a4-landscape'
+        : 'bg-white shadow-2xl p-8 mx-auto border border-gray-300 box-border a4-portrait';
+      
+      canvas.innerHTML = htmlContent;
+      document.getElementById('printPreviewModal').classList.remove('hidden');
+    }
+
+    function closePreviewModal() {
+      document.getElementById('printPreviewModal').classList.add('hidden');
+    }
+
+    // DOWNLOAD PDF DARI MODEL A4
+    async function downloadPreviewPDF() {
+      const previewElement = document.getElementById('previewCanvas');
+      if (!previewElement) return;
+
+      const opt = {
+        margin: 0,
+        filename: activePreviewMeta.filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: activePreviewMeta.orientation }
+      };
+
+      const btn = document.getElementById('downloadPdfBtn');
+      const originalText = btn.innerHTML;
+      
+      try {
+        btn.disabled = true;
+        btn.innerText = "Mengunduh PDF...";
+
+        await html2pdf().set(opt).from(previewElement).save();
+      } catch (err) {
+        console.error("Gagal membuat PDF dari Preview:", err);
+        alert("PDF gagal dibuat. Silakan coba lagi.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+   function shareWhatsApp(id, targetDay) {
+  if (!targetDay) return;
+
+  const item = schedules.find(s => String(s.id) === String(id));
+  if (!item) return;
+
+  const data = item.schedule_data || {};
+  let text = '';
+
+  const formatSlot = (dayData, slotKey, label) => {
+    const val = dayData[slotKey];
+    // Pastikan nilai null/undefined/string kosong diabaikan, tapi angka 0 tetap terbaca
+    if (val === undefined || val === null || val === '') return '';
+    const icon = dayData[`${slotKey}_done`] ? '✅' : '🔲';
+    return `  ${icon} ${label}: ${val}\n`;
+  };
+
+  if (targetDay === 'all') {
+    text += `*JADWAL KEGIATAN PEKANAN*\n📌 *Awal Minggu:* ${item.date || '-'}\n\n`;
+    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+    
+    days.forEach(d => {
+      const dayData = data[d.toLowerCase()] || {};
+      text += `*HARI ${d.toUpperCase()}*\n`;
+      text += formatSlot(dayData, 'jam1', 'Jam 1') || '  - Jam 1: -\n';
+      text += formatSlot(dayData, 'jam2', 'Jam 2') || '  - Jam 2: -\n';
+      text += formatSlot(dayData, 'jam3', 'Jam 3') || '  - Jam 3: -\n';
+      text += formatSlot(dayData, 'bakda', 'Bakda Dzuhur') || '  - Bakda Dzuhur: -\n';
+      text += '\n';
+    });
+  } else {
+    const dayName = targetDay.charAt(0).toUpperCase() + targetDay.slice(1);
+    const dayData = data[targetDay.toLowerCase()] || {};
+
+    text += `*JADWAL HARI ${dayName.toUpperCase()}*\n📌 *Minggu:* ${item.date || '-'}\n\n`;
+    text += formatSlot(dayData, 'jam1', 'Jam 1') || '  - Jam 1: -\n';
+    text += formatSlot(dayData, 'jam2', 'Jam 2') || '  - Jam 2: -\n';
+    text += formatSlot(dayData, 'jam3', 'Jam 3') || '  - Jam 3: -\n';
+    text += formatSlot(dayData, 'bakda', 'Bakda Dzuhur') || '  - Bakda Dzuhur: -\n';
+  }
+
+  const encodedText = encodeURIComponent(text.trim());
+  window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+}
+
+function shareWhatsAppBulanan() {
+  const filterInput = document.getElementById('filterMonth');
+  if (!filterInput) return;
+  
+  const selectedMonth = filterInput.value; // Format: YYYY-MM
+  
+  // Filter dengan mencocokkan format string YYYY-MM
+  const filtered = schedules.filter(item => {
+    if (!item.date) return false;
+    // Mengubah pemisah / menjadi - jika format date di item menggunakan slash
+    const normalizedDate = item.date.replace(/\//g, '-');
+    return normalizedDate.startsWith(selectedMonth);
+  });
+
+  if (filtered.length === 0) {
+    alert('Tidak ada data laporan pada bulan ini untuk dibagikan.');
+    return;
+  }
+
+  const totalPekan = filtered.length;
+  const selesai = filtered.filter(i => i.status === 'Selesai').length;
+  const pending = totalPekan - selesai;
+
+  let text = `*REKAP LAPORAN BULANAN*\n🗓 *Bulan:* ${selectedMonth}\n\n`;
+  text += `📊 *Ringkasan Status:*\n- Total Pekan: ${totalPekan}\n- Selesai: ${selesai}\n- Pending: ${pending}\n\n`;
+  text += `📋 *Rincian Pekan:*\n`;
+
+  filtered.forEach((item, index) => {
+    text += `${index + 1}. Awal Minggu ${item.date} -> Status: [${item.status || 'Pending'}]\n`;
+  });
+
+  const encodedText = encodeURIComponent(text.trim());
+  window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof buildFormFields === 'function') buildFormFields();
+  
+  const inputDate = document.getElementById('inputDate');
+  if (inputDate && typeof getTodayFormatted === 'function') {
+    inputDate.value = getTodayFormatted();
+  }
+  
+  const filterMonth = document.getElementById('filterMonth');
+  if (filterMonth) {
+    filterMonth.value = new Date().toISOString().slice(0, 7);
+  }
+  
+  if (typeof fetchSchedules === 'function') fetchSchedules();
+});
+  </script>
+</body>
+</html>
